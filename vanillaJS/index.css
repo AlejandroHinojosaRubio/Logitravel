@@ -135,6 +135,16 @@ button#add {
     transform: translateY(0);
 }
 
+/* 
+    Reponsive design is not required in the technical proof
+    Added this styles to improve laptops size experience
+*/
+@media (max-height: 850px) {
+    .popup-bg.open .popup {
+      transform: translateY(15%);
+    }
+  }
+  
 .popup {
     display: flex;
     flex-direction: column;

@@ -1,11 +1,5 @@
 import React from 'react';
-import { Item } from '../types';
-
-interface ItemListProps {
-  items: Item[];
-  onSelect: (id: string) => void;
-  onDoubleClick: (id: string) => void;
-}
+import { ItemListProps } from '../types';
 
 const ItemList: React.FC<ItemListProps> = ({ items, onSelect, onDoubleClick }) => {
   return (

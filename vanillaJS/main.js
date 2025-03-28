@@ -1,4 +1,7 @@
-const lastItemsRemoved = [];
+const ADD_ACTION = "add";
+const DELETE_ACTION = "delete";
+
+const lastActions = [];
 
 // Wait for the whole DOM to be loaded before adding listeners
 document.addEventListener('DOMContentLoaded', () => {
@@ -8,15 +11,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const addBtn = document.getElementById('add');
     const popupAddBtn = document.getElementById('popup-add');
     const popupCancelBtn = document.getElementById('popup-cancel');
-    const popupInput = document.getElementById('addItemInput');
+    const popupInput = document.getElementById('add-item-input');
     const popupBg = document.querySelector('.popup-bg');
 
     // Add click listeners to the entire item list
     itemList.addEventListener('click', (e) => selectItem(e));
-    itemList.addEventListener('dblclick', (e) => deleteItem(e));
+    itemList.addEventListener('dblclick', (e) => deleteItem({event: e}));
 
     // Buttons listeners
-    
     deleteBtn.addEventListener('click', () => {
         if (deleteBtn.classList.contains('disabled')) return;
 
@@ -26,12 +28,29 @@ document.addEventListener('DOMContentLoaded', () => {
     undoBtn.addEventListener('click', () => {
         if (undoBtn.classList.contains('disabled')) return;
 
-        addItems(lastItemsRemoved);
+        if (lastActions.length === 0) return;
         
-        // Reset removed items array
-        lastItemsRemoved.length = 0;
+        // Get the last action performed
+        const lastAction = lastActions.pop();
+        
+        switch(lastAction.action) {
+            case ADD_ACTION:
+                // We can only add one item per input
+                const [addActionItem] = lastAction.items;
 
-        addDisabledBtnStatus(undoBtn);
+                deleteItem({item: addActionItem.item})
+                break;
+                
+            case DELETE_ACTION:
+                // If the last action was deleting items, restore them
+                restoreItems(lastAction.items);
+                break;
+        }
+        
+        // If there are no more actions to undo, disable the undo button
+        if (lastActions.length === 0) {
+            addDisabledBtnStatus(undoBtn);
+        }
     });
 
     addBtn.addEventListener('click', () => {        
@@ -86,34 +105,75 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const deleteAllSelectedItems = () => {
         const selectedItems = itemList.querySelectorAll('.item.selected');
+        const allItemsArray = Array.from(itemList.children); 
+        const deletedItems = [];
+        
+        selectedItems.forEach((item) => {
+            const index = allItemsArray.indexOf(item);
+            
+            // Store the item and its current index
+            deletedItems.push({
+                id: index,
+                item: item
+            });
 
-        selectedItems.forEach(item => {
             item.classList.remove('selected');
-            // Save item to allow undo action
-            lastItemsRemoved.push(item);
             item.remove();
         });
+
+        if (deletedItems.length > 0) {
+            // Save the batch delete action for undo
+            lastActions.push({
+                action: DELETE_ACTION,
+                items: deletedItems
+            });
+        }
 
         addDisabledBtnStatus(deleteBtn);
         removeDisabledBtnStatus(undoBtn);
     }
 
-    const deleteItem = (event) => {
-        // Get the item clicked 
-        const item = event.target.closest('.item');
+    const deleteItem = ({event, item}) => {
+        if (event) {
+            // Get the item clicked 
+            const eventItem = event.target.closest('.item');
+            const index = Array.from(itemList.children).indexOf(eventItem);
+            
+            // Store the item and its current index
+            const deletedItem = {
+                id: index,
+                item: eventItem
+            };
+            
+            eventItem.remove();
 
-        if (item) {
-            lastItemsRemoved.push(item);
+            // Save the single delete action for undo
+            lastActions.push({
+                action: DELETE_ACTION,
+                items: [deletedItem]
+            });
+            
+            removeDisabledBtnStatus(undoBtn);
+        } else if (item) {
+            // Entering this condition means that the item that we want to remove is from the last add action 
+            // We don't want to undo an undo action
             item.remove();
         }
-
-        removeDisabledBtnStatus(undoBtn);
     }
 
-    const addItems = (children) => {
-        children.forEach(child => {
-            // Add items
-            itemList.appendChild(child);
+    // Adds items to the list in their original positions
+    const restoreItems = (items) => {
+        // Sort by ID (original position) to maintain the order
+        const sortedItems = [...items].sort((a, b) => a.id - b.id);
+                
+        sortedItems.forEach(({id, item}) => {
+            if (id !== undefined && id < itemList.children.length) {
+                // Insert at the specified position
+                itemList.insertBefore(item, itemList.children[id]);
+            } else {
+                // Add to the end if the position is no longer valid
+                itemList.appendChild(item);
+            }
         });
     }
 
@@ -136,11 +196,21 @@ document.addEventListener('DOMContentLoaded', () => {
         newItem.classList.add('item');
         newItem.appendChild(document.createTextNode(popupInput.value.trim()));
 
-        addItems([newItem]);
+        // Add the new item to the list
+        itemList.appendChild(newItem);
+        
+        const index = Array.from(itemList.children).indexOf(newItem);
 
+        // Save the add action for undo
+        lastActions.push({
+            action: ADD_ACTION, 
+            items: [{id: index, item: newItem}]
+        });
+
+        addDisabledBtnStatus(popupAddBtn);
+        removeDisabledBtnStatus(undoBtn);
         // Reset input and close popup
         popupInput.value = '';
-        addDisabledBtnStatus(popupAddBtn);
         closePopup();
     }
 

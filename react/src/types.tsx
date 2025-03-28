@@ -17,3 +17,9 @@ export interface AddItemPopupProps {
   onAdd: (text: string) => void;
   onCancel: () => void;
 }
+
+export interface ItemListProps {
+  items: Item[];
+  onSelect: (id: string) => void;
+  onDoubleClick: (id: string) => void;
+}
