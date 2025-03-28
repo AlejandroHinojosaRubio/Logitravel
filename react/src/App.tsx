@@ -1,12 +1,11 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import { FC, useCallback, useMemo, useState } from 'react';
 import './App.css';
 import ActionButtons from './components/ActionButtons';
 import AddItemPopup from './components/AddItemPopup';
 import ItemList from './components/ItemList';
-import { Item } from './types';
+import { Item, Action, ActionType } from './types';
 
-
-const App: React.FC = () => {
+const App: FC = () => {
   // State declarations
   const [items, setItems] = useState<Item[]>([
     { id: '1', text: 'Item 1', selected: false },
@@ -14,14 +13,17 @@ const App: React.FC = () => {
     { id: '3', text: 'Item 3', selected: false },
     { id: '4', text: 'Item 4', selected: false },
   ]);
-  const [removedItems, setRemovedItems] = useState<Item[]>([]);
+  const [actionHistory, setActionHistory] = useState<Action[]>([]);
   const [isPopupOpen, setIsPopupOpen] = useState<boolean>(false);
 
   // Check if any item is selected
   const hasSelectedItems = useMemo(() => items.some(item => item.selected), [items]);
+  
+  // Check if we have actions to undo
+  const canUndo = useMemo(() => actionHistory.length > 0, [actionHistory]);
 
   // Handler functions
-  
+
   const handleItemSelect = useCallback((id: string) => {
     setItems(items.map(item => 
       item.id === id ? { ...item, selected: !item.selected } : item
@@ -32,37 +34,75 @@ const App: React.FC = () => {
     const itemToRemove = items.find(item => item.id === id);
 
     if (itemToRemove) {
-      setRemovedItems(prev => [...prev, itemToRemove]);
-      setItems(prev => prev.filter(item => item.id !== id));
+      // Record the delete action
+      const deleteAction: Action = {
+        type: ActionType.DELETE_ACTION,
+        items: [{ ...itemToRemove }]
+      };
+
+      setActionHistory(prev => [...prev, deleteAction]);
+      setItems(items.filter(item => item.id !== id));
     }
   }, [items]);
 
   const handleDeleteSelected = useCallback(() => {
     const selectedItems = items.filter(item => item.selected);
+    
+    if (selectedItems.length > 0) {
+      const deleteAction: Action = {
+        type: ActionType.DELETE_ACTION,
+        // Record the batch delete action with unselected copies to prevent selected style when doing the undo
+        items: selectedItems.map(item => ({ ...item, selected: false }))
+      };
 
-    setRemovedItems([...removedItems, ...selectedItems]);
-    setItems(items.filter(item => !item.selected));
-  }, [items, removedItems]);
+      setActionHistory(prev => [...prev, deleteAction]);
+      setItems(items.filter(item => !item.selected));
+    }
+  }, [items]);
 
   const handleUndo = useCallback(() => {
-    if (removedItems.length > 0) {
-      const lastRemovedBatch = [...removedItems];
+    if (actionHistory.length === 0) return;
+    const lastAction = actionHistory[actionHistory.length - 1]
 
-      setItems(prev => [...prev, ...lastRemovedBatch]);
-      setRemovedItems([]);
+    switch (lastAction?.type) {
+      case ActionType.ADD_ACTION:
+        // For add actions, simply remove the added items by their id
+        setItems(prevItems => 
+          prevItems.filter(item => 
+            !lastAction.items.some(actionItem => actionItem.id === item.id)
+          )
+        );
+        break;
+
+      case ActionType.DELETE_ACTION:
+        // For delete actions, restore the items (ordered by id to maintain the original positions)
+        setItems(prevItems => [
+          ...prevItems,
+          ...lastAction.items
+        ].sort((a, b) => Number(a.id) - Number(b.id)));
+        break;
     }
-  }, [removedItems]);
 
-  const handleAddItem = (text: string) => {
+    // Remove the action from history
+    setActionHistory(prev => prev.slice(0, prev.length - 1));
+  }, [actionHistory]);
+
+  const handleAddItem = useCallback((text: string) => {
     const newItem: Item = {
       id: Date.now().toString(),
       text,
       selected: false
     };
+    setItems(prev => [...prev, newItem]);
+    
+    const addAction: Action = {
+      type: ActionType.ADD_ACTION,
+      items: [newItem]
+    };
 
-    setItems([...items, newItem]);
+    setActionHistory(prev => [...prev, addAction]);
     setIsPopupOpen(false);
-  };
+  }, []);
 
   return (
     <div className="container">
@@ -84,7 +124,7 @@ const App: React.FC = () => {
         
         <ActionButtons 
           canDelete={hasSelectedItems}
-          canUndo={removedItems.length > 0}
+          canUndo={canUndo}
           onDelete={handleDeleteSelected}
           onUndo={handleUndo}
           onAdd={() => setIsPopupOpen(true)}
