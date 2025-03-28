@@ -22,7 +22,7 @@ Se han desarrollado dos implementaciones:
 - **Extra**: Eliminación mediante doble clic en el elemento
 
 ✅ **Deshacer**:
-- Botón de deshacer para revertir la última operación de eliminación
+- Botón de deshacer para revertir la última operación (add o delete)
 
 ✅ **Características Adicionales**:
 - **Extra**: Mensajes visuales claros mediante estados de botones
